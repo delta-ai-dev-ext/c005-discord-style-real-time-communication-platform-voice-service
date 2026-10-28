@@ -1,0 +1,7 @@
+[test]
+coverage = true
+coverageSkipTestFiles = true
+coveragePathIgnorePatterns = ["src/index.ts", "src/lifecycle.ts"]
+
+[bundle]
+entrypoints = ["src/index.ts"]

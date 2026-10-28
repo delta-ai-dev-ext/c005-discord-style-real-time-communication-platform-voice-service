@@ -1,0 +1,228 @@
+schema_version: 2
+diagram_id: voice-service
+mode: service
+orientation: LR
+scope: voice_service service view - stateless LiveKit Cloud coordination service.
+sources:
+- path: docs/adr-001.md
+  sha256: 93a614046b4bade03a8a28419eec48e43e5ca5d945c76a92bf0ebb0af6b32498
+- path: docs/architecture.md
+  sha256: 041406ae6246a2496e1b4ded933880e6c8bd07d0942be67fe5ddaab0c9a1b78b
+- path: docs/openapi_spec.yaml
+  sha256: ea5bc335a3cfebb26178b3694a53fe9c6d16aebd16fc1685c7e170bec6493569
+- path: docs/user_stories.md
+  sha256: a70a77620c272993f18a3db5cc65913f92995f94cff24b63c2ba883c2e272462
+entities:
+- id: client
+  label: Member client
+  kind: annotation
+  role: inbound
+  row: 350
+  evidence:
+  - path: docs/architecture.md
+    quote: Client calls `POST /v1/voice/channels/{channel_id}/token` with a Clerk
+      JWT.
+  - path: docs/user_stories.md
+    quote: '`GET /v1/voice/channels/{channel_id}/participants` is called with a valid
+      Clerk JWT.'
+- id: livekit_webhook
+  label: LiveKit Cloud webhooks
+  kind: annotation
+  role: inbound
+  row: 520
+  evidence:
+  - path: docs/architecture.md
+    quote: LiveKit Cloud pushes events to `POST /v1/webhooks/livekit`.
+- id: svc
+  name: voice_service
+  label: voice_service
+  kind: service
+  technology: kubernetes-pod
+  role: service
+  row: 260
+  evidence:
+  - path: docs/architecture.md
+    quote: '`voice_service` is a **stateless coordination and authorization service**
+      for voice/video channels.'
+- id: livekit
+  label: LiveKit Cloud
+  kind: annotation
+  external: true
+  external_role: dependency
+  role: outbound
+  row: 200
+  evidence:
+  - path: docs/architecture.md
+    quote: Outbound client to LiveKit Cloud's `RoomServiceClient`
+- id: community
+  label: community_service
+  kind: annotation
+  role: sync-only
+  row: 560
+  evidence:
+  - path: docs/architecture.md
+    quote: Calls `community_service` synchronously to determine whether a user may
+      join, speak, or publish video.
+- id: events
+  name: community_events
+  label: community_events
+  kind: broker
+  technology: kafka
+  role: outbound
+  row: 10
+  evidence:
+  - path: docs/architecture.md
+    quote: to the `community_events` Kafka topic.
+relationships:
+- id: r-client-token
+  source: client
+  target: svc
+  type: request
+  interaction:
+    channel: direct
+    purpose: token issuance
+    protocol: HTTP
+    exchange_id: token-issuance
+  evidence:
+  - path: docs/architecture.md
+    quote: Client calls `POST /v1/voice/channels/{channel_id}/token` with a Clerk
+      JWT.
+  - path: docs/architecture.md
+    quote: Join Voice Room Flow (Synchronous HTTP)
+- id: r-client-participants
+  source: client
+  target: svc
+  type: request
+  interaction:
+    channel: direct
+    purpose: participant listing
+    protocol: HTTP
+    exchange_id: participant-listing
+  evidence:
+  - path: docs/user_stories.md
+    quote: '`GET /v1/voice/channels/{channel_id}/participants` is called with a valid
+      Clerk JWT.'
+  - path: docs/architecture.md
+    quote: Join Voice Room Flow (Synchronous HTTP)
+- id: r-community
+  source: svc
+  target: community
+  type: request
+  interaction:
+    channel: direct
+    purpose: channel access check
+    protocol: REST
+    exchange_id: access-check
+  evidence:
+  - path: docs/architecture.md
+    quote: '`voice_service` calls `community_service` `GET /internal/v1/channels/{channel_id}/access/{user_id}`
+      to check access.'
+  - path: docs/architecture.md
+    quote: Outbound REST client to `community_service`
+- id: r-livekit
+  source: svc
+  target: livekit
+  type: request
+  interaction:
+    channel: direct
+    purpose: room moderation
+    exchange_id: room-moderation
+  evidence:
+  - path: docs/architecture.md
+    quote: '`voice_service` calls LiveKit''s `RoomServiceClient` to remove the participant
+      from all of the community''s voice rooms listed in the event payload (`voice_channel_ids`).'
+- id: r-webhook
+  source: livekit_webhook
+  target: svc
+  type: event
+  interaction:
+    channel: callback
+    purpose: session metrics
+    protocol: webhook
+  evidence:
+  - path: docs/openapi_spec.yaml
+    quote: Receives events from LiveKit Cloud (`participant_joined`, `participant_left`,
+      `room_finished`).
+  - path: docs/adr-001.md
+    quote: via a signed webhook (JWT + body SHA-256)
+- id: r-cons
+  source: events
+  target: svc
+  type: event
+  interaction:
+    channel: messaging
+    purpose: moderation enforcement
+    protocol: Kafka
+  messaging:
+    role: consumer
+    topic: community_events
+  evidence:
+  - path: docs/architecture.md
+    quote: '`voice_service` (consumer group `voice_service`) consumes these events.'
+  - path: docs/architecture.md
+    quote: to the `community_events` Kafka topic.
+view:
+  entities:
+  - client
+  - livekit_webhook
+  - svc
+  - livekit
+  - community
+  - events
+  groups: []
+  edges:
+  - id: e-client-token
+    source: client
+    target: svc
+    relationships:
+    - r-client-token
+    label: 'HTTP
+
+      token issuance'
+    flow: forward
+  - id: e-client-participants
+    source: client
+    target: svc
+    relationships:
+    - r-client-participants
+    label: 'HTTP
+
+      participant listing'
+    flow: forward
+  - id: e-community
+    source: svc
+    target: community
+    relationships:
+    - r-community
+    label: 'REST
+
+      access check'
+    flow: forward
+  - id: e-livekit
+    source: svc
+    target: livekit
+    relationships:
+    - r-livekit
+    label: 'RoomServiceClient
+
+      room moderation'
+    flow: forward
+  - id: e-webhook
+    source: livekit_webhook
+    target: svc
+    relationships:
+    - r-webhook
+    label: 'webhook
+
+      session metrics'
+    flow: forward
+  - id: e-cons
+    source: events
+    target: svc
+    relationships:
+    - r-cons
+    label: 'Consumers
+
+      voice_service:community_events'
+    flow: feedback
+  omitted: []

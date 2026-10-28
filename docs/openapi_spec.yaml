@@ -1,0 +1,224 @@
+openapi: "3.0.3"
+info:
+  title: voice_service API
+  version: "1.0.0"
+  description: |
+    Stateless coordination service for voice/video communication. 
+    Uses LiveKit Cloud for media transport and `community_service` for authorization.
+servers:
+  - url: /v1
+    description: Version 1
+
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      operationId: getHealthz
+      tags: [Probes]
+      responses:
+        "200":
+          description: Service is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /readyz:
+    get:
+      summary: Readiness probe
+      operationId: getReadyz
+      tags: [Probes]
+      description: Returns 200 only if the Kafka consumer has been assigned to partitions.
+      responses:
+        "200":
+          description: Service is ready.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: Service is not ready (Kafka consumer not assigned).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /voice/channels/{channel_id}/token:
+    post:
+      summary: Request a LiveKit room access token
+      operationId: postVoiceChannelToken
+      tags: [Voice]
+      description: |
+        Checks user permission via `community_service` and returns a short-lived LiveKit access token.
+        Room capacity is capped at ~50 participants. Timed-out members receive a listen-only token.
+      parameters:
+        - name: channel_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The unique ID of the voice channel.
+      responses:
+        "200":
+          description: Token issued successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "403":
+          description: Caller is not authorized (banned, not a member, or lacks `can_connect`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Room is full (at capacity).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalError"
+      security:
+        - ClerkJWT: []
+
+  /voice/channels/{channel_id}/participants:
+    get:
+      summary: List participants in a voice channel
+      operationId: getVoiceChannelParticipants
+      tags: [Voice]
+      description: Requires `can_view` permission. Queries LiveKit's RoomServiceClient.
+      parameters:
+        - name: channel_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The unique ID of the voice channel.
+      responses:
+        "200":
+          description: List of participants.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Participant"
+        "403":
+          description: Caller is not authorized to view the channel.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalError"
+      security:
+        - ClerkJWT: []
+
+  /webhooks/livekit:
+    post:
+      summary: LiveKit event webhook
+      operationId: postWebhooksLivekit
+      tags: [Webhooks]
+      description: |
+        Receives events from LiveKit Cloud (`participant_joined`, `participant_left`, `room_finished`).
+        Authenticated exclusively via LiveKit signature verification (JWT + Body SHA-256).
+      responses:
+        "200":
+          description: Webhook processed successfully.
+        "401":
+          description: Invalid signature or verification failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      security:
+        - LiveKitSignature: []
+
+components:
+  securitySchemes:
+    ClerkJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Clerk Session JWT with custom claims `sub` (user_id), `username`, and `email`.
+    LiveKitSignature:
+      type: http
+      scheme: bearer
+      description: Signed JWT in the Authorization header with body SHA-256 validation.
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, not_ok]
+        timestamp:
+          type: string
+          format: date-time
+
+    TokenResponse:
+      type: object
+      properties:
+        server_url:
+          type: string
+          description: LiveKit Cloud WebSocket URL.
+        token:
+          type: string
+          description: Signed LiveKit JWT access token.
+        room:
+          type: string
+          description: The LiveKit room name derived from the channel ID.
+        expires_at:
+          type: string
+          format: date-time
+          description: Token expiration timestamp.
+        grants:
+          type: object
+          properties:
+            can_speak:
+              type: boolean
+              description: Permission to publish microphone.
+            can_video:
+              type: boolean
+              description: Permission to publish camera/screen.
+
+    Participant:
+      type: object
+      properties:
+        user_id:
+          type: string
+        is_muted:
+          type: boolean
+        has_video:
+          type: boolean
+        joined_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Machine-readable code (e.g. `missing_permission`, `banned`, `room_full`).
+            message:
+              type: string
+              description: Human-readable error message.
+            details:
+              type: object
+              description: Additional context (e.g. `timed_out_until` for timeout).
+
+  responses:
+    InternalError:
+      description: Unexpected server-side error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
