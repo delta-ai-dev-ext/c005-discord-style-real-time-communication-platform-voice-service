@@ -37,7 +37,7 @@ entities:
   name: voice_service
   label: voice_service
   kind: service
-  technology: kubernetes-pod
+  technology: container
   role: service
   row: 260
   evidence:

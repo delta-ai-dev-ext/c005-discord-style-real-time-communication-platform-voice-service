@@ -49,7 +49,7 @@
 
 ---
 
-## 4. Operational Model (Stateless Kubernetes)
+## Operational Model (Stateless Containers)
 - **Statelessness:** Fully stateless. Live room state is owned by LiveKit and queried on demand. No PostgreSQL, no persistent state.
 - **Horizontal Scaling:** Since all state is externalized, `voice_service` pods can be scaled independently of each other.
 - **Graceful Shutdown:** On `SIGTERM`/`SIGINT`, the service drains connections and stops consuming from Kafka gracefully to allow in-flight moderation events to complete.

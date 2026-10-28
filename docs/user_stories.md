@@ -82,7 +82,7 @@ User stories for the voice/video coordination service, derived strictly from the
 - [ ] `voice_sessions_minutes_total` is updated on `participant_left` or `room_finished`.
 
 ## US-007: Health and Readiness Probes
-**As a** Kubernetes orchestrator,
+**As a** container orchestrator,
 **I want to** monitor the state of the service pods,
 **So that** traffic is only routed to healthy and fully operational pods.
 

@@ -25,7 +25,7 @@
 | Testing | `bun:test` | language-skill | Native Bun test runner. `mock()` from `bun:test` for stubbing. |
 | HTTP client | `fetch` (native Bun) | language-skill | Standard Web API. No external HTTP client dependency. |
 
-## Kubernetes Lifecycle & Probes
+## Container Lifecycle & Probes
 - **Statelessness:** The service is fully stateless. Live room state is owned by LiveKit. No PostgreSQL is used.
 - **SIGTERM / SIGINT Graceful Shutdown:** On termination, stop consuming from Kafka, wait for in-flight HTTP requests to complete, and exit gracefully.
 - **`/healthz` (Liveness):** Returns `200` if the service is running.
@@ -84,7 +84,7 @@ tests/
 ## Pinned Decisions
 | Dependency / Area | Pin / Constraint | Rationale | Added By | Date |
 |---|---|---|---|---|
-| Runtime | `bun` (exclusively) | Mandated stateless pod model + TypeScript event-loop performance. | Tech Lead | 2026-06-03 |
+| Runtime | `bun` (exclusively) | Mandated stateless container model + TypeScript event-loop performance. | Tech Lead | 2026-06-03 |
 | Web Framework | `elysia` | Bun-native, TypeScript-first, highest performance. | Tech Lead | 2026-06-03 |
 | LiveKit SDK | `livekit-server-sdk` | Official SDK for tokens, room API, webhooks. | Tech Lead | 2026-06-03 |
 | Clerk SDK | `@clerk/backend` | Official Clerk SDK for JWT verification. | Tech Lead | 2026-06-03 |
