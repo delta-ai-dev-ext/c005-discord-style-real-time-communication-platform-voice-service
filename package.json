@@ -1,0 +1,29 @@
+{
+  "name": "voice_service",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Stateless voice/video coordination service delegating media transport to LiveKit Cloud.",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "test": "bun test --coverage",
+    "typecheck": "bun x tsc --noEmit",
+    "lint": "bun x eslint src/ tests/"
+  },
+  "dependencies": {
+    "@clerk/backend": "^3.26.4",
+    "elysia": "^1.4.30",
+    "kafkajs": "^2.2.4",
+    "livekit-server-sdk": "^2.19.2",
+    "prom-client": "^15.1.3",
+    "winston": "^3.19.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "eslint": "^10.13.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.72.1"
+  }
+}
